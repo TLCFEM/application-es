@@ -1,0 +1,52 @@
+node 1 0 0
+node 2 600 0
+node 3 1200 0
+node 4 0 1800
+node 5 600 1800
+node 6 1200 1800
+node 7 0 3600
+node 8 600 3600
+node 9 1200 3600
+
+material MPF 1 2E5 400 .02
+material Concrete22 2 40 2 2 2 2 2 .25 2E-3 1E-4 2 .02
+
+element RGCMQG 1 1 2 5 4 2 100 .003 1 .007 1
+element RGCMQG 2 2 3 6 5 2 100 .003 1 .007 1
+element RGCMQG 3 4 5 8 7 2 100 .003 1 .007 1
+element RGCMQG 4 5 6 9 8 2 100 .003 1 .007 1
+
+fix 1 P 1 2 3
+
+plainrecorder 1 Node U1 8
+plainrecorder 2 Node RF1 1 2 3
+
+step static 1 1
+set fixed_step_size 1
+set ini_step_size 1E-1
+set symm_mat false
+
+# cload 1 0 -90E3 2 7 9
+# cload 2 0 -180E3 2 8
+cload 1 0 -100E3 2 7 9
+cload 2 0 -200E3 2 8
+
+converger AbsIncreDisp 1 1E-7 100 1
+
+step static 2 20
+set fixed_step_size 1
+set ini_step_size 5E-3
+set symm_mat 0
+
+# amplitude Tabular 1 LOOP1.txt
+amplitude Tabular 1 LOOP2.txt
+
+displacement 3 1 36 1 7 8 9
+
+converger RelIncreDisp 2 1E-5 20 1
+
+analyze
+
+save recorder 1 2 3 4
+
+exit
