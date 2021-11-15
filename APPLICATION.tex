@@ -1,0 +1,570 @@
+\documentclass[3p,review,sort&compress,11pt,fleqn]{elsarticle}
+\bibliographystyle{elsarticle-num-names}
+\journal{Engineering Structures}
+\usepackage{lmodern,amsmath,amsfonts,amssymb,siunitx,subcaption,graphicx,floatrow,booktabs,pgfplots,gnuplot-lua-tikz,structmech,bm}
+\setstructmech{linewidth=.4pt}
+\pgfplotsset{compat=1.14}
+\usepgfplotslibrary{fillbetween}
+\usetikzlibrary{shapes,arrows.meta}
+\newcommand*{\md}[1]{\mathrm{d}#1}
+\newcommand*{\va}[1]{\delta#1}
+\newcommand*{\mT}{\mathrm{T}}
+\newcommand*{\vfrac}[2]{\dfrac{\va#1}{\va#2}}
+\newcommand*{\pfrac}[2]{\dfrac{\partial#1}{\partial#2}}
+\newcommand*{\figref}[1]{Fig.~\ref{#1}}
+\newcommand*{\eqsref}[1]{Eq.~(\ref{#1})}
+\newcommand*{\tabref}[1]{Table~\ref{#1}}
+\newcommand*{\mathbold}{\bm}
+\begin{document}
+\begin{abstract}
+Numerical simulation of reinforced concrete (RC) shear walls is a challenging task, due to the intricate underlying mechanics and the difficulty in balancing computational cost and accuracy. In the previous work, a general--purpose four--node quadrilateral drilling element named as GCMQ has been developed by the authors. This new element performs well with coarse meshes and provides engineers an option to efficiently simulate plane problems, such as shear walls subjected to in-plane loading. Meanwhile, GCMQ can recover nonlinear distribution of stress field so that section resultant forces can be explicitly integrated. In this paper, GCMQ is validated via numerical simulations of several RC shear wall specimens with different reinforcement schemes and geometries. Compared to experimental results, numerical models show that GCMQ can accurately simulate in-plane response such as pushover backbones with a relatively low cost for both short and slender walls. With a proper material model, it is also possible to recover damage distribution patterns. Since GCMQ is essentially a microscopic finite element, convergence is guaranteed, local response can also be obtained with mesh refinement. GCMQ could be used as a good tool for future modelling of shear walls and similar structures.
+\end{abstract}
+\begin{keyword}
+drilling element\sep
+{RC} shear wall\sep
+{FEM} simulation
+\end{keyword}
+\begin{frontmatter}
+\title{Numerical Evaluations of A Novel Membrane Element in Simulations of Reinforced Concrete Shear Walls}
+\author[add1]{T.~L.~Chang\corref{tlc}}
+\ead{tlcfem@gmail.com}
+\author[add1]{C.-L.~Lee}
+\author[add1]{A.~J.~Carr}
+\author[add1]{R.~P.~Dhakal}
+\cortext[tlc]{corresponding author}
+\address[add1]{Department of Civil and Natural Resources Engineering, University of Canterbury, Christchurch, NZ, 8041.}
+\end{frontmatter}%\tableofcontents
+\section{Introduction}
+The initial concept of finite element methods (FEM) can be traced back to early 1950s (see the review by \citet{Clough1990}). The FEMs quickly gained popularity and civil engineers started to model wall/panel structures \citep[e.g.,][]{MacLeod1969} with early 2D elements, such as the widely--used four--node isoparametric element \citep{Turner1956}. Since those elements tend to be over-stiff, dense mesh grids are often required to obtain relatively accurate results. This makes it almost impractical to carry out numerical simulations of coupled systems, such as large--scale multi-storey buildings, with these finite elements, due to a high computational cost. The approach using classic finite elements is hereinafter referred to as the microscopic approach.
+
+To improve simulation efficiency, engineers then started to seek other simplifications, such as macroscopic approaches. Apart from beam and truss approximations \citep[e.g.,][]{Hrennikoff1941}, the three--vertical line element model (TVLEM) \citep{Kabeyaswa1983} was accepted by engineers due to its simple formulation. To improve its performance, \citet{Colotti1993} proposed the multi--vertical line element model (MVLEM), which works well for slender walls. However, current spring--based elements, including TVLEM, MVLEM and their variants \citep[e.g.,][]{Massone2010,Fischinger2014,Kolozvari2015}, are still experiencing difficulties in modelling squat walls due to two major drawbacks: 1) the incapability of fully describing coupled response, and 2) the presence of ad hoc assumptions, such as `plane sections remain plane', most of which are often violated in the cases where shear dominates.
+
+It could be noted that there are debates \cite{Orakcal2004,Palermo2007} about the efficiency, robustness and reliability of both approaches. Given the fact that the problem at hand is two dimensional, the authors believe that the microscopic approach is a better option to obtain accurate simulation results. Although the macroscopic approach allows more flexible simplifications of element formulations, such as using spring systems to represent wall panels, it lacks a mechanics basis and sometimes cannot converge to analytical solutions. To obtain accurate results, material parameters need to be modified to compensate for the error brought by such simplifications. Thus, analysts have to alter material properties to obtain reasonably accurate results. It should be stressed that, if the aforementioned assumptions cannot be eliminated, such a deficiency is inevitable.
+
+In contrast, microscopic elements are normally formulated based on the total energy possessed by the system so that convergence is often guaranteed if both the consistency requirement and the stability condition are fulfilled \citep[see, e.g.,][]{Zienkiewicz2013,Ralston2001}. To avoid using dense mesh grids, the element formulation could be optimised to remarkably improve coarse--mesh accuracy. Thus, computational cost can be largely reduced while reliability and robustness can be retained. Moreover, since 2D finite elements naturally support planar distributions of stress and strain, nonlinear local response can be recovered to a certain degree, depending on the capability of adopted material models. This can be hardly accomplished by macroscopic elements.
+
+Based on the above strategies and motivations, a high--performing drilling membrane element, named as GCMQ, is proposed by the authors \citep{Chang2019}. The new element: 1) has only four corner nodes (for smaller matrix bandwidth), 2) possesses drilling degrees of freedom for direct applications in modelling wall--frame structures, 3) is general for elasto-plastic applications, 4) exhibits excellent performance particularly with coarse meshes, and 5) simplifies stress/strain recovery \citep{Chang2019}. The numerical examples presented in the same paper have shown a good performance baseline in terms of linear elastic applications. In this paper, incorporating both fixed crack theory and concrete damage plasticity (CDP) model \citep{Lee1998}, GCMQ is used to simulate several reinforced concrete wall specimens with different geometries and loading configurations. With coarse mesh grids (\numproduct{2x2} and fewer), it is shown that GCMQ is able to simulate global response, such as pushover curves and damage patterns with an acceptable accuracy.
+
+This paper firstly presents the basic definition of GCMQ. In the same section, some engineering considerations of stress interpretation and the derivation of sectional resultant forces are discussed. Following a summary of the material models involved in this paper, numerical simulations of several RC shear wall specimens are performed and presented in the corresponding section.
+\section{The GCMQ Element}
+\subsection{Overview}
+The GCMQ element is a plane membrane element with four corner nodes that possess nodal rotational degrees of freedom (also known as drilling DoFs). It combines the advantages of mixed formulation and the generalised conforming method \citep{Long2009}. The corresponding governing functional possesses a simple form
+\begin{gather}\label{eq:final_principle}
+\varPi=\int_V\left[W\left(\mathbold{\varepsilon}\right)+\mathbold{\sigma}^\mT\left(\nabla\mathbold{u}+\hat{\mathbold{\varepsilon}}-\mathbold{\varepsilon}\right)\right]\md{V}-\varPi_{bt},
+\end{gather}
+in which $V$ denotes element domain, $W\left(\mathbold{\varepsilon}\right)$ is strain energy and is normally a nonlinear function of strain $\mathbold{\varepsilon}$, $\mathbold{\sigma}$ is stress, $\mathbold{u}$ is displacement and $\hat{\mathbold{\varepsilon}}$ is the so called enhanced strain field that can be used to fine tune the behaviour of resulting element. The symbol $\varPi_{bt}$ denotes the boundary terms that may include contributions of body forces, surface tractions and/or concentrated loads. In GCMQ, deformation is decomposed in an additive manner, the corresponding graphical interpretation can be seen in \figref{fig:decompose_deformation}. The distortion controlled by drilling DoFs augments the traditional bilinear displacement field. Details of element formulation, along with solving scheme, implementation considerations and performance benchmarks, can be found in the previous work by the authors \citep{Chang2019}.
+\begin{figure}[H]
+\centering\scriptsize
+\begin{tikzpicture}[x=2mm,y=2mm]
+\def\a{0+20}\def\b{180+25}\def\c{270+15}\def\d{360+15}
+\CoorOrigin{-5,-5}[x(\xi)][y(\eta)]{8}
+\node[single arrow,draw,minimum height=10mm,single arrow head extend=1.2mm,inner sep=.8mm]at(17.5,5){};
+\node[single arrow,draw,minimum height=10mm,single arrow head extend=1.2mm,inner sep=.8mm]at(42.5,5){};
+\node[align=center]at(17.5,8.5){translation\\mapping};
+\node[align=center]at(42.5,8.5){distortion\\mapping};
+\node[single arrow,draw,minimum height=10mm,single arrow head extend=1.8mm,inner sep=2mm,shape border rotate=270]at(30,-4){};
+\node at(17.5,-15){\LARGE$=$};
+\node at(42.5,-15){\LARGE$+$};
+\node[align=center]at(5,5){undeformed};
+\node[align=center]at(30,5){only\\translation};
+\node[align=center]at(55,5){deformed};
+\node[align=center]at(5,-15){deformed};
+\node[align=center]at(30,-15){translation};
+\node[align=center]at(55,-15){distortion};
+\begin{scope}[xshift=00mm,every node/.style={circle,thick,draw,fill=white,inner sep=0,minimum size=2.5mm}]
+\draw[thick]
+(0,0)node{}--(10,0)node{}--(10,10)node{}--(0,10)node{}--cycle;
+\end{scope}
+\begin{scope}[xshift=50mm,every node/.style={circle,thick,draw,fill=white,inner sep=0,minimum size=2.5mm}]
+\draw[thick]
+(0-1,0)node{}--(10+.8,0+.6)node{}--(10+.8,10+.6)node{}--(0+.6,10+.8)node{}--cycle;
+\end{scope}
+\begin{scope}[xshift=100mm,every node/.style={circle,thick,draw,fill=white,inner sep=0,minimum size=2.5mm}]
+\draw[dashed,line width=.2mm]
+(0-1,0)--(10+.8,0+.6)--(10+.8,10+.6)--(0+.6,10+.8)--cycle;
+\draw[thick]
+(0-1,0)node{}to[out=\a,in=\b]
+(10+.8,0+.6)node{}to[out=\b-90,in=\c]
+(10+.8,10+.6)node{}to[out=\c-90,in=\d]
+(0+.6,10+.8)node{}to[out=\d-90,in=\a+90]cycle;
+\end{scope}
+\begin{scope}[xshift=00mm,yshift=-40mm,every node/.style={circle,thick,draw,fill=white,inner sep=0,minimum size=2.5mm}]
+\draw[thick]
+(0-1,0)node{}to[out=\a,in=\b]
+(10+.8,0+.6)node{}to[out=\b-90,in=\c]
+(10+.8,10+.6)node{}to[out=\c-90,in=\d]
+(0+.6,10+.8)node{}to[out=\d-90,in=\a+90]cycle;
+\end{scope}
+\begin{scope}[xshift=50mm,yshift=-40mm,every node/.style={circle,thick,draw,fill=white,inner sep=0,minimum size=2.5mm}]
+\draw[dashed,line width=.2mm]
+(0,0)--(10,0)--(10,10)--(0,10)--cycle;
+\draw[thick]
+(0-1,0)node{}--(10+.8,0+.6)node{}--(10+.8,10+.6)node{}--(0+.6,10+.8)node{}--cycle;
+\end{scope}
+\begin{scope}[xshift=100mm,yshift=-40mm,every node/.style={circle,thick,draw,fill=white,inner sep=0,minimum size=2.5mm}]
+\draw[dashed,line width=.2mm]
+(0,0)--(10,0)--(10,10)--(0,10)--cycle;
+\draw[thick]
+(0,0)node{}to[out=\a,in=\b]
+(10,0)node{}to[out=\b-90,in=\c]
+(10,10)node{}to[out=\c-90,in=\d]
+(0,10)node{}to[out=\d-90,in=\a+90]cycle;
+\end{scope}
+\end{tikzpicture}
+\caption{deformation decomposition}\label{fig:decompose_deformation}
+\end{figure}
+\subsection{Stress Patterns}
+Due to its mixed nature, GCMQ interpolates stress field over element domain by using a complete quadratic polynomial derived from a quartic Airy stress function, the explicit expression of which can be written as
+\begin{gather}
+\mathbold{\sigma}=\begin{bmatrix}
+	\sigma_x & \sigma_y & \tau_{xy}
+\end{bmatrix}^\mT=\mathbold{\phi}_\sigma\mathbold{\alpha},
+\end{gather}
+with $\mathbold{\alpha}=\begin{bmatrix}
+	\alpha_1 & \alpha_2 & \alpha_3 & \cdots & \alpha_{11}
+\end{bmatrix}^\mT$ are interpolation parameters and
+\begin{gather}\label{eq:stress_patterns}
+\mathbold{\phi}_\sigma=
+\left[\begin{array}{ccc|cc|cc|cc|cc}
+	1 & 0 & 0 & 0 & y & 0  & x  &  0   & 2xy  &   -x^2   & 2y^2-x^2 \\
+	0 & 1 & 0 & x & 0 & y  & 0  & 2xy  &  0   & 2x^2-y^2 &   -y^2   \\
+	0 & 0 & 1 & 0 & 0 & -x & -y & -x^2 & -y^2 &   2xy    &   2xy
+\end{array}\right],
+\end{gather}
+where $x$ and $y$ are global coordinates.
+
+Some of the stress patterns that \eqsref{eq:stress_patterns} can represent are illustrated in \figref{fig:stress_patterns}. The corresponding Airy stress terms are also shown in the same figure. For conventional FEM analyses, external loads are typically applied as (or converted to) concentrated nodal forces. This leads to a lower order distribution of stress field within element domain. However, a constant or (incomplete) linear interpolation, as commonly adopted in existing classic elements, is not sufficient to properly describe stress distributions in certain loading cases. With a quadratic distribution, as can be seen in the figure, most stress patterns in loaded wall--like structures (without boundary tractions) can be covered.
+\begin{figure}[H]
+\centering\scriptsize
+\begin{tikzpicture}[>={Straight Barb[width=4pt]}]
+\clip(-.5,-1)rectangle(2.5,2.5);
+\draw[line width=.4mm](0,0)rectangle(2,2);
+\draw(0,0)rectangle(2,-.4);
+\draw(0,2)rectangle(2,2.4);
+\foreach\x in{0,.4,.8,1.2,1.6,2}{
+\draw[->](\x,0)--++(0,-.4);
+\draw[->](\x,2)--++(0,.4);
+};
+\node at(1,1){$ax^2$};
+\node at(1,-.8){uniform tension};
+\end{tikzpicture}
+\begin{tikzpicture}[>={Straight Barb[width=4pt]}]
+\clip(-.5,-1)rectangle(2.5,2.5);
+\draw[line width=.4mm](0,0)rectangle(2,2);
+\foreach\x in{0,.7,1.4}{
+\draw[->](\x,-.2)--++(.6,0);
+\draw[<-](2.2,\x)--++(0,.6);
+\draw[<-](\x,2.2)--++(.6,0);
+\draw[->](-.2,\x)--++(0,.6);
+};
+\node at(1,1){$bxy$};
+\node at(1,-.8){uniform shear};
+\end{tikzpicture}
+\begin{tikzpicture}[>={Straight Barb[width=4pt]}]
+\clip(-.5,-1)rectangle(2.5,2.5);
+\draw[line width=.4mm](0,0)rectangle(2,2);
+\draw(0,.4)--(2,-.4);
+\draw(0,1.6)--(2,2.4);
+\foreach\x in{0,.4,.8,1.2,1.6,2}{
+\draw[->](\x,0)--++(0,-.4*\x+.4);
+\draw[->](\x,2)--++(0,.4*\x-.4);
+};
+\node at(1,1){$cx^3$};
+\node at(1,-.8){constant moment};
+\end{tikzpicture}
+\begin{tikzpicture}[>={Straight Barb[width=4pt]}]
+\clip(-.5,-1)rectangle(2.5,2.5);
+\draw[line width=.4mm](0,0)rectangle(2,2);
+\draw(0,0)rectangle(2,-.4);
+\draw(0,2)rectangle(2,2.4);
+\foreach\x in{0,.4,.8,1.2,1.6,2}{
+\draw[<-](\x,0)--++(0,-.4);
+\draw[->](\x,2)--++(0,.4);
+}
+\foreach\x in{0,.7,1.4}{
+\draw[<-](2.2,\x)--++(0,.6);
+\draw[<-](-.2,\x)--++(0,.6);
+}
+\draw[<-](0,-.2)--++(.35,0);
+\draw[<-](.45,-.2)--++(.25,0);
+\draw[<-](.8,-.2)--++(.15,0);
+\draw[->](1.05,-.2)--++(.15,0);
+\draw[->](1.3,-.2)--++(.25,0);
+\draw[->](1.65,-.2)--++(.35,0);
+\draw[->](0,2.2)--++(.35,0);
+\draw[->](.45,2.2)--++(.25,0);
+\draw[->](.8,2.2)--++(.15,0);
+\draw[<-](1.05,2.2)--++(.15,0);
+\draw[<-](1.3,2.2)--++(.25,0);
+\draw[<-](1.65,2.2)--++(.35,0);
+\node at(1,1){$dx^2y$};
+\node at(1,-.8){linear tension/shear};
+\end{tikzpicture}
+\begin{tikzpicture}[>={Straight Barb[width=4pt]}]
+\clip(-.5,-1)rectangle(2.5,2.5);
+\draw[line width=.4mm](0,0)rectangle(2,2);
+\draw(0,-.4)--(2,.4);
+\draw(0,1.6)--(2,2.4);
+\foreach\x in{0,.4,.8,1.2,1.6,2}{
+\draw[->](\x,0)--++(0,.4*\x-.4);
+\draw[->](\x,2)--++(0,.4*\x-.4);
+}
+\foreach\x in{0,.7,1.4}{
+\draw[<-](2.2,\x)--++(0,.6);
+\draw[->](-.2,\x)--++(0,.6);
+}
+\draw[->](0,-.2)--++(.35,0);
+\draw[->](.45,-.2)--++(.25,0);
+\draw[->](.8,-.2)--++(.15,0);
+\draw[->](1.05,-.2)--++(.15,0);
+\draw[->](1.3,-.2)--++(.25,0);
+\draw[->](1.65,-.2)--++(.35,0);
+\draw[<-](0,2.2)--++(.35,0);
+\draw[<-](.45,2.2)--++(.25,0);
+\draw[<-](.8,2.2)--++(.15,0);
+\draw[<-](1.05,2.2)--++(.15,0);
+\draw[<-](1.3,2.2)--++(.25,0);
+\draw[<-](1.65,2.2)--++(.35,0);
+\node at(1,1){$ex^3y$};
+\node at(1,-.8){linear moment};
+\end{tikzpicture}
+\caption{corresponding stress patterns of selected Airy stress function terms}\label{fig:stress_patterns}
+\end{figure}
+\subsection{Section Resultant Forces}
+Engineers are more interested in section resultant forces as from which useful information can be extracted to guide structural design. By definition, section resultant forces, including moment $M$, axial force $F$ and shear force $V$, can be obtained by integrating stress field $\mathbold{\sigma}$ over the target section, which degenerates to a line in a 2D scenario.
+
+For any section within element domain, three resultant forces could be expressed as
+\begin{gather}\label{eq:resultant_force}
+F=\int\sigma_w~\md{A},\quad{}V=\int\tau_s~\md{A},\quad{}M=\int{}s\cdot\sigma_w~\md{A},
+\end{gather}
+in which $s$ and $w$ are local coordinates of the target section/line, $\sigma_w$ and $\tau_s$ are normal and shear stresses acting along corresponding directions. The $w$ axis points to the outer normal direction while the $s$ axis coincides with the section inclination. Since a uniform thickness $t$ is assumed, $\md{A}$ simply equals $t\cdot\md{s}$. The direct computation of cross section resultant forces would be useful with very coarse mesh grids. However, as moments are taken about edge centres, it would be less meaningful to process moment outputs alone if multiple elements are defined along the target section.
+
+Here only the edge 2 that connects nodes 2 and 3 is discussed for illustration. \figref{fig:reference_frame} shows the definitions of three different reference frames: the global coordinate system $x$-$y$, the parent coordinate system $\xi$-$\eta$ and the local coordinate system $s$-$w$ for edge 2. In this case, $s$ and $\eta$ are of the same direction so that
+\begin{gather*}
+\md{s}=\dfrac{e_2}{2}\md{\eta},
+\end{gather*}
+where $e_2$ is the length of edge 2. The stress $\mathbold{\sigma}$ can be transformed from $x$-$y$ system to $w$-$s$ system as follows,
+\begin{gather}\label{eq:edge_stress}
+\bar{\mathbold{\sigma}}_2\left(\eta\right)=\begin{bmatrix}
+\sigma_w\\\tau_s
+\end{bmatrix}=\mathbold{L}_2\mathbold{\sigma}_2=\mathbold{L}_2\mathbold{\phi}_\sigma\left(\xi,\eta\right)\Big|_{\xi=1}\mathbold{\alpha},
+\end{gather}
+with
+\begin{gather}
+\mathbold{L}_2=\begin{bmatrix}
+l^2_2&m^2_2&2l_2m_2\\
+-l_2m_2&l_2m_2&l^2_2-m^2_2
+\end{bmatrix},
+\end{gather}
+where $l_2=\cos\theta_2$ and $m_2=\sin\theta_2$ are directional cosines with $\theta_2$ denotes the anticlockwise angle measured from $x$-axis to $w$-axis. The subscript $n=1,2,3,4$ denotes four edge labels. The transformation matrix $\mathbold{L}_n$ can be easily derived from the free body diagram of a wedge subjected to given stress $\mathbold{\sigma}$. It shall be emphasised that the original $\mathbold{\phi}_\sigma$ is a function of global coordinates $x$ and $y$. But in \eqsref{eq:edge_stress} it is expressed as a function of the parent coordinates $\xi$ and $\eta$. The transformation between parent and global coordinates is given by the Jacobian matrix that is available via isoparametric mapping.
+\begin{figure}[htb]
+\footnotesize\centering\begin{tikzpicture}
+\CoorOrigin{-1,-1}
+\coordinate(A)at(1,-1);
+\coordinate(B)at(3,0);
+\coordinate(C)at(4,2.5);
+\coordinate(D)at(.5,2);
+\coordinate(E)at($(A)!.5!(D)$);
+\coordinate(F)at($(B)!.5!(C)$);
+\coordinate(G)at($(A)!.5!(B)$);
+\coordinate(H)at($(C)!.5!(D)$);
+\draw[blue,line width=.6mm](B)--(C);
+\draw(B)node[draw,circle,fill=white,inner sep=.2mm]{$2$}--(A)node[draw,circle,fill=white,inner sep=.2mm]{$1$}--(D)node[draw,circle,fill=white,inner sep=.2mm]{$4$}--(C)node[draw,circle,fill=white,inner sep=.2mm]{$3$};
+\draw[->]($(E)!-.2!(F)$)--($(E)!1.4!(F)$)node[anchor=west]{$\xi$};
+\draw[->]($(G)!-.2!(H)$)--($(G)!1.2!(H)$)node[fill=white,anchor=south]{$\eta$};
+\draw[->](F)--($(F)!.5!(C)$)node[fill=white,left=2mm]{$s$};
+\draw[->](F)--++(1,-.4)node[fill=white,anchor=north west]{$w$};
+\draw($(F)+(.5,0)$)arc(0:-21.8:.5)node[anchor=north]{$\theta_2$};
+\draw[dashed](F)--++(.8,0);
+\end{tikzpicture}
+\caption{definitions of reference frames}\label{fig:reference_frame}
+\end{figure}
+
+Then three section resultant forces can be simply integrated as
+\begin{gather*}
+F_2=\int\sigma_w~\md{A}=\dfrac{e_2t}{2}\int_{-1}^{1}\sigma_w~\md{\eta},\\
+V_2=\int\tau_s~\md{A}=\dfrac{e_2t}{2}\int_{-1}^{1}\tau_s~\md{\eta},\\
+M_2=\int{}s\cdot\sigma_w~\md{A}=\dfrac{e_2^2t}{4}\int_{-1}^{1}\eta\cdot\sigma_w~\md{\eta}.
+\end{gather*}
+Since $\mathbold{L}_n$ is a constant matrix for each boundary, they can be further expressed as
+\begin{gather}
+\begin{bmatrix}
+F_2\\V_2
+\end{bmatrix}=\dfrac{e_2t}{2}\mathbold{L}_2\mathbold{C}_2\mathbold{\alpha},\qquad
+M_2=\dfrac{e_2^2t}{4}\mathbold{L}_2^{\left(1\right)}\mathbold{D}_2\mathbold{\alpha}.
+\end{gather}
+where
+\begin{gather}
+\mathbold{C}_2=\int_{-1}^{1}\mathbold{\phi}_\sigma\left(\xi,\eta\right)\Big|_{\xi=1}~\md{\eta},\qquad
+\mathbold{D}_2=\int_{-1}^{1}\eta\cdot\mathbold{\phi}_\sigma\left(\xi,\eta\right)\Big|_{\xi=1}~\md{\eta}.
+\end{gather}
+The symbol $\mathbold{L}_2^{\left(1\right)}$ denotes the first row of $\mathbold{L}_2$. The matrices $\mathbold{C}_2$ and $\mathbold{D}_2$, that contain up to cubic terms, can be precisely evaluated by a two--point Gaussian scheme. For other edges, the transformation can be derived in a similar fashion. A closed form of above resultant forces is available only if the element is a parallelogram or rectangle.
+
+The procedure described above is an alternative to simplify the recovery of stress field and resultant forces. Nevertheless, traditional post-processing procedures can also be applied. Resultant forces can also be obtained by integrating the material stress field, which can be obtained from material stresses at integration points via proper averaging methods. This is beyond the scope of this paper.
+\section{Material Models}
+\subsection{Concrete}
+Two concrete material models, namely the fixed crack model (FCM) and the damage plasticity model (CDP), are employed in this work. FCM model allows flexible definitions of backbones and unloading/reloading responses. It is used in applications under cyclic loadings. However, FCM model does not support regularisation of size effect, hence it is not suitable for studies regarding mesh refinement. In contrast, CDP model is derived based on classic plasticity theory and supports regularisation, hence it can be used to study convergence of the proposed element. CDP model is only used in applications under monotonic loadings due to its limitations in calibration of unloading/reloading behaviour. Details of two models are briefly introduced.
+\subsubsection{Fixed Crack Concrete Model}
+A fixed crack planar concrete model (FCM) that incorporates a Rankine type square initial yield surface is used. The formulation resembles the one presented by \citet{Crisfield1989}. Similar formulations can be seen elsewhere. For simplicity, coupling effect between two crack directions is not considered. For each direction, the uniaxial response adopts Tsai's equation \citep{Tsai1988}. The normalised equation can be written as
+\begin{gather*}
+y=\dfrac{mx}{1+\left(m-\dfrac{n}{n-1}\right)x+\dfrac{x^n}{n-1}},
+\end{gather*}
+where $x$ and $y$ are normalised strain and stress, $m$ is a constant that controls the ratio of the initial modulus and the secant modulus at peak stress while $n$ is another constant that controls the shape of descending portion of the curve. By adjusting $m$ and $n$, both compression and tension backbones can be represented. A simple piece--wise linear unloading/reloading rule is applied. An illustrative example is depicted in \figref{fig:concrete}. It shall be noted that the material parameters are scaled for a clearer plot and may not represent a real concrete behaviour. The shear response is assumed to be bilinear elastic with a shear retention factor to account for dowel action, aggregate locking, etc. Such a concrete model is simple and in most cases convergence can be achieved with little computational effort.
+\subsubsection{Concrete Damage Plasticity Model}
+To refine analysis results, this paper also adopts another type of concrete constitutive models that is based on classic plasticity and damage theory, namely the concrete damage plasticity (CDP) model. The yield surface of which is defined in the principal stress space, the first stress invariant $I_1$ is included in its expression so confinement can be automatically accounted for. Details of the model can be found elsewhere \citep{Lee1998}. Based on the additive decomposition of strain, the stress $\sigma$ can be expressed as
+\begin{gather*}
+\sigma=\left(1-d\right)E\left(\varepsilon-\varepsilon_p\right),
+\end{gather*}
+in which $E$ the elastic stiffness, $\varepsilon$ is the total strain, $\varepsilon_p$ is the plastic strain and $d=f(d_t,d_c)$ is the damage/degradation factor defined as a function of tensile and compressive damage indices $d_t$ and $d_c$, the evolution of which depends on two material constants $g_t$ and $g_c$. By adjusting these two parameters, the CDP model is able to regularise material response to obtain mesh independent results. The normalised fracture energy $g_t$ is defined as fracture energy per unit length, viz., $g_t=G_F/l_c$ where $G_F$ is the first mode fracture energy and $l_c$ is the characteristic length. Although there is no correspondence in compression, for numerical convenience, the conjugate part of $g_t$, namely $g_c$, is defined in the model. Alternatively, they can be interpreted as the total areas under stress envelops expressed in terms of $\varepsilon_p$ \citep{Lubliner1989}.
+
+The damage indices $d_t$ and $d_c$ ranging from zero to unity can be used to indicate the degree of stiffness degradation. Since cracking is modelled in a smeared approach, $d_t$ and $d_c$ may not necessarily be directly related to concrete crack and crush. Meanwhile, since coarse meshes are used in the following numerical examples, only an averaged effect can be represented. For the same reason, confinement is not considered separately in this work.
+\subsection{Reinforcement}
+In this work, reinforcement is assumed to be uniformly distributed and implemented in a smeared approach. As a result, the real rebar layouts are not explicitly modelled. An alternative could be the combination of both concentrated and smeared reinforcements. The uniaxial Menegotto--Pinto steel model \citep{Menegotto1973} is used to simulate the behaviour of reinforcement along two orthogonal directions. A representative example of the model is shown in \figref{fig:steel}.
+\begin{figure}[htb]
+\centering\scriptsize
+\begin{subfigure}[b]{.48\textwidth}\centering
+\input{MAT/TSAI}
+\caption{uniaxial concrete model}\label{fig:concrete}
+\end{subfigure}\quad
+\begin{subfigure}[b]{.48\textwidth}\centering
+\input{MAT/MPSM}
+\caption{steel model}\label{fig:steel}
+\end{subfigure}
+\caption{schematic sketches of the material models used in analyses}\label{fig:material}
+\end{figure}
+
+In this work, reinforcement is modelled independently in a smeared approach. Hence interactions between reinforcement and host concrete, such as dowel action, bar buckling and confinement, are not considered (not in an discrete way but still can be accounted for by modifying material models). The total material stiffness $\mathbold{D}$ and stress $\mathbold{\sigma}$ can be expressed as the superposition of concrete and reinforcement response.
+\begin{gather}
+\mathbold{D}=\mathbold{D}_c+\mathbold{D}_s,\quad
+\mathbold{\sigma}=\mathbold{\sigma}_c+\mathbold{\sigma}_s,
+\end{gather}
+where $\mathbold{D}$ is the overall material stiffness, subscripts $_c$ and $_s$ denote concrete and reinforcement portion, respectively. $\mathbold{D}_s$ is often assumed to be orthogonal so that
+\begin{gather}
+\mathbold{D}_s=\begin{bmatrix}
+	\rho_xE_x & 0         & 0 \\
+	0         & \rho_yE_y & 0 \\
+	0         & 0         & 0
+\end{bmatrix},\quad
+\mathbold{\sigma}_s=\begin{bmatrix}
+	\rho_x\sigma_x \\
+	\rho_y\sigma_y \\
+	0
+\end{bmatrix},
+\end{gather}
+where $\rho_x$ and $\rho_y$ are two reinforcement ratios along two axes, $E_x$ and $E_y$ are corresponding steel moduli. Both the main reinforcement and stirrups along the two perpendicular directions can be considered. It shall be stressed that, although the smeared approach is used, GCMQ itself does not impose any constraint on the implementation of reinforcement. The discrete approach, or a combined method, could be employed as well.
+\section{Numerical Simulations}
+\subsection{Plain Concrete Panel}
+A plain concrete panel with a unit size is used with the CDP model to showcase the performance baseline of GCMQ. The panel is fully fixed at one end and a uniform shear deformation is applied at the other end. Noting that strength degradation tends to be mesh dependent, which is known due to the size effect \citep[see, e.g.,][]{Bazant1983}, normalised fracture energy $g_t$ and its counterpart $g_c$, are strictly scaled according to their original definitions \citep{Lubliner1989} as shown in \tabref{tab:sp_gtgc} so that mesh dependence can be largely eliminated.
+\begin{table}[htbp]
+\scriptsize\centering\caption{normalised energy adopted in plain concrete panel example}\label{tab:sp_gtgc}
+\begin{tabular}{lllll}
+	\toprule
+	                                       &            \multicolumn{4}{c}{mesh grid}            \\
+	                                       & \numproduct{1x1}  & \numproduct{2x2}  & \numproduct{4x4}   & \numproduct{8x8}   \\ \midrule
+	$g_t$ (\si{\newton\per\milli\meter^2}) & \num{4E-3} & \num{8E-3} & \num{16E-3} & \num{32E-3} \\
+	$g_c$ (\si{\newton\per\milli\meter^2}) & \num{4E-1} & \num{8E-1} & \num{16E-1} & \num{32E-1} \\ \bottomrule
+\end{tabular}
+\end{table}
+Other parameters remain unchanged for different meshes. They are: elastic modulus $E=\SI{30}{\giga\pascal}$, Poisson's ratio $\nu=\num{0.2}$, tensile strength $f_t=\SI{4}{\mega\pascal}$, compressive strength $f_c=\SI{40}{\mega\pascal}$, tensile softening parameter $a_t=\num{0.2}$, compressive hardening paramater $a_c=\num{4.0}$, reference degradation factor at half tensile strength $\bar{D}_t=\num{0.6}$, reference degradation factor at compressive strength $\bar{D}_c=\num{0.6}$, dilatation parameter $\alpha_p=\num{0.2}$, ratio between biaxial and uniaxial compressive strengths $f_{bc}/f_c=\num{1.16}$. Details on explanations and definitions of those material properties is documented elsewhere \citep{Lubliner1989,Lee1996,Lee1998}.
+
+The benchmark results are shown in \figref{fig:single_patch}. Numbers in brackets indicate mesh density. Three different integration schemes are tested, which are denoted with suffixes -I (5-point \citep{Irons1971}), -G (\numproduct{3x3} Gauss) and -L (\numproduct{3x3} Lobatto). With a \numproduct{2x2} mesh grid, GCMQ is able to predict an equivalently accurate response compared to that of Q4 (CPS4 in ABAQUS notation) element \citep{Taig1964} with an \numproduct{8x8} mesh grid.
+\begin{figure}[htb]
+\scriptsize\centering
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/SP/SP}
+\caption{comparison between GCMQ-I and Q4}
+\end{subfigure}\quad
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/SP/SP2}
+\caption{comparison between different versions of GCMQ}\label{fig:gcmq_scheme}
+\end{subfigure}
+\caption{performance baseline of GCMQ}\label{fig:single_patch}
+\end{figure}
+Meanwhile, \figref{fig:gcmq_scheme} indicates that further mesh refinement does not lead to significant improvement of accuracy. Given that convergence of GCMQ is proved \citep{Chang2019}, it could be concluded that a \numproduct{2x2} mesh grid is accurate enough for practical uses. Based on this fact, in subsequent examples, a \numproduct{2x2} grid is used as a standard mesh configuration. It shall be mentioned that the localised response, such as crack propagation, can only be well simulated with a refined mesh grid. For illustration, \figref{fig:single_patch_dt} shows concentration of tensile damage parameter $d_t$ with mesh refinement.
+\begin{figure}[htb]
+\scriptsize\centering
+\input{PIC/SP/DT}
+\caption{concentration of tensile damage $d_t$ distribution with mesh refinement}\label{fig:single_patch_dt}
+\end{figure}
+Local response is a trade-off for high analysis efficiency. With coarse mesh grids, it is difficult to recover reasonable local response as nodal deformation is averaged over the whole element domain.
+\subsection{Monotonic Cases}
+The LSW1, LSW2, MSW1 and MSW2 specimens reported by \citet{Salonikios1999} share similar configurations but have different aspect ratios (\num{1.0} and \num{1.5}). The wall specimen setup and the mesh grid used are depicted in \figref{fig:salonikios_setup}.
+\begin{figure}[htb]
+\centering\footnotesize
+\begin{tikzpicture}[scale=2]
+\draw[very thick](0,0)rectangle(1.2,1.2);
+\draw[very thick](-.4,0)rectangle(1.6,-.4);
+\draw[very thick](-.2,1.2)rectangle(1.4,1.45);
+\foreach\x in {.05,.1,.15,.2,1.15,1.1,1.05,1,.4,.6,.8}\draw(\x,-.35)--(\x,1.4);
+\foreach\x in {.05,.15,.25,.35,.45,.55,.65,.76,.85,.95,1.05,1.15}\draw(.02,\x)--(1.18,\x);
+\foreach\x in {-.3,-.2,-.1,...,1.5}\draw(\x,-.38)--(\x,-.02);
+\foreach\x in {-.1,0,.1,...,1.35}\draw(\x,1.22)--(\x,1.43);
+\foreach\x in {-.3,-.2,-.1}\draw(-.38,\x)--(1.58,\x);
+\foreach\x in {1.3,1.4}\draw(-.18,\x)--(1.38,\x);
+\draw[|<->|](0,-.6)--++(1.2,0)node[midway,fill=white]{\SI{1.2}{\meter}};
+\draw[|<->|](-.6,0)--++(0,1.2)node[midway,fill=white]{\SI{1.2}{\meter} or \SI{1.8}{\meter}};
+\draw[<-](1.1,.4)--(1.8,.8)node[fill=white,align=center]{strengthened\\boundary};
+\draw(3,0)rectangle(4.2,1.2);
+\draw(3.6,0)--++(0,1.2)(3,.6)--++(1.2,0);
+\node at(3.6,-.3){\numproduct{2x2} mesh grid};
+\end{tikzpicture}
+\caption{illustration of specimens, taken from the original paper \citep{Salonikios1999}}\label{fig:salonikios_setup}
+\end{figure}
+
+A summary of main material properties used in simulations of four specimens are listed in \tabref{tab:parameter_summary}.
+\begin{table}[htb]
+\setlength{\tabcolsep}{5pt}
+\scriptsize\centering\caption{summary of main material parameters used in LSW1, LSW2, MSW1 and MSW2}\label{tab:parameter_summary}
+\begin{tabular}{cccccccccccccc}
+	\toprule
+	     &        $w$        &        $h$        &        $t$        &       $f_c$       &       $f_t$       &    $\rho$     & concrete &             $g_t$             &             $g_c$             &   $a_t$   &   $a_c$   & $\bar{D}_t$ & $\bar{D}_c$ \\
+	     & \si{\milli\metre} & \si{\milli\metre} & \si{\milli\metre} & \si{\mega\pascal} & \si{\mega\pascal} & \si{\percent} &          & \si{\kilo\newton\per\metre^2} & \si{\mega\newton\per\metre^2} &           &           &             &             \\ \midrule
+	LSW1 &       1200        &       1200        &        100        &       23.0        &        1.7        &      1.7      &   CDP    &           \num{2.0}           &          \num{0.35}           & \num{0.5} & \num{4.0} & \num{0.50}  & \num{0.45}  \\
+	LSW2 &       1200        &       1200        &        100        &       21.0        &        1.5        &      1.3      &   CDP    &           \num{1.0}           &          \num{0.20}           & \num{0.5} & \num{4.0} & \num{0.55}  & \num{0.60}  \\
+	MSW1 &       1200        &       1800        &        100        &       23.0        &        1.1        &      1.2      &   CDP    &           \num{2.0}           &          \num{0.35}           & \num{0.5} & \num{4.0} & \num{0.50}  & \num{0.55}  \\
+	MSW2 &       1200        &       1800        &        100        &       23.0        &        1.1        &      1.1      &   CDP    &           \num{1.3}           &          \num{0.35}           & \num{0.5} & \num{4.0} & \num{0.50}  & \num{0.55}  \\ \bottomrule
+\end{tabular}
+\end{table}
+The following properties are not changed for all four specimens: elastic modulus $E=\SI{30}{\giga\pascal}$, Poisson's ratio $\nu=\num{0.2}$, dilatation parameter $\alpha_p=\num{0.2}$, ratio between biaxial and uniaxial compressive strengths $f_{bc}/f_c=\num{1.16}$, reinforcement yield strength $f_y=\SI{500}{\mega\pascal}$ and the corresponding hardening ratio $b=\SI{1}{\percent}$. The reinforcement ratios range from \SI{1.1}{\percent} to \SI{1.7}{\percent}. Strength degradation mainly depends on concrete response, which is controlled by material model parameters: normalised energy terms $g_t$ and $g_c$. Due to the lack of those properties, assumed values are used. They are larger than realistic values in order to stabilize the softening response, as well as to model the effect of confinement. Similar practice can be seen in the original literature \citep{Lee1996}.
+
+As shown in \figref{fig:salonikios_wall}, loading envelops are well captured by GCMQ-L with CDP model using a \numproduct{2x2} mesh grid. The initial stiffness, as well as the descending branch, can be well captured by numerical models.
+\begin{figure}[htb]
+\scriptsize\centering
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/LSW1/LSW1}
+\caption{LSW1 specimen}\label{fig:lsw1_pushover}
+\end{subfigure}\quad
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/LSW2/LSW2}
+\caption{LSW2 specimen}\label{fig:lsw2_pushover}
+\end{subfigure}
+%\caption{numerical simulations of LSW1 and LSW2}\label{fig:salonikios_walla}
+%\end{figure}
+%\begin{figure}[htb]
+%\scriptsize\centering
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/MSW1/MSW1}
+\caption{MSW1 specimen}\label{fig:msw1_pushover}
+\end{subfigure}\quad
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/MSW2/MSW2}
+\caption{MSW2 specimen}\label{fig:msw2_pushover}
+\end{subfigure}
+\caption{numerical simulations of LSW1, LSW2, MSW1 and MSW2}\label{fig:salonikios_wall}
+\end{figure}
+\subsubsection{Distribution of Damage}
+Since GCMQ is a 2D element, it naturally supports recovery of in-plane distributions of various quantities. As an example, \figref{fig:tension_damage_lsw1} shows the evolution of tension damage factor $d_t$ obtained from the CDP model.
+\begin{figure}[htb]
+\scriptsize\centering
+\input{PIC/LSW1/LSW1-DT}
+\caption{evolution of tension damage factor $d_t$ in LSW1 specimen}\label{fig:tension_damage_lsw1}
+\end{figure}
+The tensile damage starts from the left wall foot and propagates to the right. A diagonal pattern that matches experimental observations can be deduced based on the distribution of $d_t$. Concentration cannot be seen with such a coarse mesh grid but it is always possible to map a more realistic distribution with mesh refinement, as shown in the previous example.
+
+Such an averaged effect also appears in strain/stress distribution. \figref{fig:salonikios_strain} shows the vertical strain $\varepsilon_y$ profile of MSW2 specimen. An overall pattern can be identified as neutral axis is located in the right half of wall model due to the asymmetric response of concrete. This matches what is expected. The concentration of deformation that should be observed at the cracked zone cannot be recovered. For a better result, refinement along wall height is required.
+\begin{figure}[htb]
+\scriptsize\centering
+\input{PIC/MSW2/MSW2-E}
+\caption{vertical strain $\varepsilon_y$ (\num{E-3}) distribution in MSW2 specimen}\label{fig:salonikios_strain}
+\end{figure}
+
+For illustration, here an additional damage distribution of MSW1 specimen is shown in \figref{fig:tension_damage_msw1}.
+\begin{figure}[htb]
+\scriptsize\centering
+\input{PIC/MSW1/MSW1-DT}
+\caption{evolution of tension damage factor $d_t$ in MSW1 specimen}\label{fig:tension_damage_msw1}
+\end{figure}
+The tensile damage starts at the tension side as expected and propagates towards the compression side accordingly. As MSW1 and MSW2 have aspect ratios of \num{1.5}, the flexure behaviour is more prominent compared to LSW1 and LSW2. Hence, diagonal patterns are not as obvious as in MSW1 and MSW2. This observation is consistent with experiment results \citep{Salonikios1999}.
+\subsubsection{Resultant Forces}
+As aforementioned, section resultant forces can be obtained via integration, which can be done internally. \figref{fig:salonikios_shear} shows an example of base shear force distribution in LSW2 specimen computed using nodal reactions and edge stress integration.
+\begin{figure}[htb]
+\scriptsize\centering
+\input{PIC/LSW2/LSW2-SHEAR}
+\caption{base shear force computation in LSW2 specimen}\label{fig:salonikios_shear}
+\end{figure}
+With the ability of calculating the contribution of each element edge, GCMQ can recover nonlinear distributions of resultant forces. As cracks initialise from the left side of the wall foot, most shear resistance is contributed by the right half. Edge summation of shear forces approximates nodal summation of reactions, although some discrepancies can be observed in the softening stage. It shall be emphasised that, although the interpolated stress field satisfies equilibrium, it does not possess intra-element continuity and thus is essentially a local average of true stress field. It means that such an interpolation cannot give exact equivalent resultant forces in extremely distorted stress fields. This explains the discrepancies observed in \figref{fig:salonikios_shear}. With mesh refinement, the difference between edge integration and nodal summation would become smaller and smaller.
+\subsubsection{Sensitivity to Material Parameters}
+Model configurations such as element type, mesh grid size, material properties including $g_t$ and $g_c$ may affect simulation results. The coarse mesh behaviour is investigated. It is worth mentioning that simply scaling concrete properties may not lead to objective results as material response is now contributed by both concrete and reinforcement. The examples shown here are not for the purpose of justifying the `correct' material properties.
+
+\figref{fig:salonikios_single} shows the comparison between results of models using one GCMQ/Q4 element only. The damage parameters are set to $g_t=\SI{15E-4}{\newton\per\metre\per\metre}$ and $g_c=\SI{22E-2}{\newton\per\metre\per\metre}$, which are above \SI{50}{\percent} of the values used in the previous models with \numproduct{2x2} meshes. As can be seen, with such a material configuration, GCMQ can capture loading backbones with good agreement. No significant difference is observed among three integration schemes. However, the model with Q4 element overestimates the maximum resistance by \SI{25}{\percent} (\SI{337}{\kilo\newton} and \SI{269}{\kilo\newton}). In this case, mesh refinement and adjustment of material properties are inevitable to capture a reliable response.
+\begin{figure}[htb]
+\scriptsize\centering
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/LSW1/LSW1-1X1}
+\caption{results of one element model}\label{fig:salonikios_single}
+\end{subfigure}\quad
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/LSW1/LSW1-FT}
+\caption{sensitivity to concrete crack strength $f_t$}\label{fig:salonikios_ft}
+\end{subfigure}
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/LSW1/LSW1-GT}
+\caption{sensitivity to $g_t$}\label{fig:salonikios_gt}
+\end{subfigure}\quad
+\begin{subfigure}[b]{.48\textwidth}
+\input{PIC/LSW1/LSW1-GC}
+\caption{sensitivity to $g_c$}\label{fig:salonikios_gc}
+\end{subfigure}
+\caption{sensitivity investigation of GCMQ with one elemnt model of LSW1 specimen}\label{fig:salonikios_sensitivity}
+%\node at(5.2,1.2){
+%\begin{tikzpicture}
+%\coordinate(N1)at(0,0);
+%\coordinate(N3)at(1,0);
+%\coordinate(N7)at(0,1);
+%\coordinate(N9)at(1,1);
+%\draw[line width=.2mm](N1)--(N3)--(N9)--(N7)--cycle;
+%\FixedSupport{.5,0}{1.8}
+%\draw[->](.1,1.2)--++(.8,0)node[midway,anchor=south]{$u$};
+%\end{tikzpicture}
+%};
+\end{figure}
+
+\figref{fig:salonikios_ft}, \figref{fig:salonikios_gt} and \figref{fig:salonikios_gc} show the sensitivity studies to concrete tensile strength $f_t$, along with damage parameters $g_c$ and $g_t$. Generally speaking, tension associated parameters control the pre-peak response while compression related parameters mainly affect the post-peak response. Although tweaking material parameters would result in different behaviour, compared to the result of Q4 element, GCMQ is able to produce backbone curves that are close to experiment data with a wide range of different values of material properties. Again, this is not achievable with classic finite elements such as Q4 incorporating a coarse mesh grid.
+\subsection{Cyclic Cases}
+For cyclic loading cases, two specimens RW1 and RW2 \citep{Thomsen2004} are modelled with the fixed crack concrete model (FCM) as examples. Both wall specimens have the same geometry with an identical aspect ratio of \num{3}. The rebar layouts of the two specimens are similar with the gross reinforcement ratio around \SI{0.5}{\percent}. The axial loads applied are \SI{400}{\kilo\newton} for RW1 and \SI{380}{\kilo\newton} for RW2. Accounting for the fact that most reinforcing bars are provided in the boundary zones in both specimens, the equivalent uniformly distributed reinforcement ratio is increased to \SI{0.7}{\percent} in the numerical simulations to produce a similar location of neutral axis. A summary of the main model properties is presented in \tabref{tab:cyclic_parameter_summary}.
+\begin{table}[htb]
+\setlength{\tabcolsep}{3pt}
+\scriptsize\centering\caption{summary of main material parameters used in RW1 and RW2}\label{tab:cyclic_parameter_summary}
+\begin{tabular}{ccccccccccccc}
+	\toprule
+	    &        $w$        &        $h$        &        $t$        &       $f_c$       &       $f_t$       &    $\rho$     &       $f_y$       &       $b$        & concrete &    axial load     & $m$ & $n$ \\
+	    & \si{\milli\metre} & \si{\milli\metre} & \si{\milli\metre} & \si{\mega\pascal} & \si{\mega\pascal} & \si{\percent} & \si{\mega\pascal} &                  &          & \si{\kilo\newton} &  \\ \midrule
+	RW1 &       1200        &       3600        &        100        &       40.0        &        2.0        &      0.7      &        400        & \SI{2}{\percent} &   FCM    &        400        & 2.0 & 2.0 \\
+	RW2 &       1200        &       3600        &        100        &       40.0        &        2.0        &      0.7      &        400        & \SI{2}{\percent} &   FCM    &        380        & 2.0 & 2.0 \\ \bottomrule
+\end{tabular}
+\end{table}
+It is worth noting that mesh objective response may not be available in this case, as the concrete material model used (FCM) does not support the corresponidng regularisation procedure. Adjusting material properties with different meshes may give close results but no justification can be concluded from such comparisons of mesh refinements.
+
+\begin{figure}[htb]
+\scriptsize\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\input{PIC/RW1/RW1}
+\caption{RW1 specimen}\label{fig:rw1_pushover}
+\end{subfigure}\quad
+\begin{subfigure}[b]{0.48\textwidth}
+\input{PIC/RW2/RW2}
+\caption{RW2 specimen}\label{fig:rw2_pushover}
+\end{subfigure}
+\caption{numerical simulations of RW1 and RW2 with GCMQ-G}\label{fig:thomsen_wall}
+\end{figure}
+Numerical results are shown in \figref{fig:thomsen_wall}. GCMQ-G elements with \numproduct{2x2} meshes are used in simulations. In general, the models are able to capture cyclic response with good agreement, although the initial stiffness is overestimated in both models. Many reasons, such as imperfections of specimens, not-so-rigid base-wall connections and customizable initial stiffness in the material model used, could lead to this difference.
+
+It could be seen that with the same loading level, there is difference between responses of the first and second cycles. This is mainly due to the concrete unloading/reloading behaviour. The hysteresis rule defined in \figref{fig:concrete} is controlled by both unloading points. The update of either would lead to a different unloading/reloading path. Justifications of material models are not the main focus of this work. Further refinement of hysteresis behaviour is possible with a more complex material hysteresis rule applied \citep[e.g.,][]{Chang1994}.
+
+With a coarse mesh grid (\numproduct{2x2}), it is difficult to recover precise strain profile along wall width as the strain field is averaged over element domain. This issue exists in all numerical models including the ones using macroscopic elements. For investigations of local response, (local) mesh refinement is inevitable. However, GCMQ shows a good performance in terms of global response. Noting that the aspect ratio of the element used can be as large as \num{3}, GCMQ is tolerant to element geometry. This is also proved in the previous paper by the authors \citep{Chang2019}. It is reasonable to conclude that GCMQ can be used for modelling large scale structures with a relatively higher accuracy and a lower computational demand.
+\section{Conclusions}
+In this paper, GCMQ --- a novel high--performing drilling element --- is used in simulations of reinforced concrete shear wall specimens. Observations and conclusions could be made as follows.
+\begin{enumerate}
+\item According to the plain concrete panel example, with \numproduct{2x2} mesh grids, GCMQ could give a reasonably accurate global response. Such a mesh configuration requires \numproduct{9x3} DoFs, which is comparable to that of models using 1D elements.
+\item Stress and strain results may not be ideal with very coarse mesh configurations, especially when the corresponding gradient is very large. Nevertheless, a trend can be well captured. For investigations of local response, refined mesh grids could be applied. Adaptive analyses are always available with GCMQ and convergence is guaranteed.
+\item GCMQ shows a good performance for modelling reinforcing concrete walls with different geometries. Compared to traditional displacement based elements, GCMQ is less sensitive to element geometries.
+\item With proper material models, GCMQ could model both shear and flexure dominated failure patterns. This is in general difficult for macroscopic elements that incorporate 1D material models, which have limited capability of describing 2D response. Local failure patterns such as bar buckling and discrete concrete crack/crush, can also be modelled if material models support such features.
+\end{enumerate}
+
+Without losing generality of classic finite elements, GCMQ manages to avoid major drawbacks found in current macroscopic elements and naturally supports various coupling effects. It offers a good alternative to further modelling of shear walls and other similar structures.
+
+Numerical models of all examples involved in this paper, which can be downloaded from this repository\footnote{https://github.com/TLCFEM/application-es}, are developed in \texttt{suanPan} \citep{Chang2018}. A light version of the GCMQ element has been implemented as a dynamic link library that can be called by OpenSees\footnote{http://opensees.berkeley.edu/}. The binary and source code can be found online\footnote{https://github.com/TLCFEM/gcmq-opensees-implementation}.
+\section*{Acknowledgement}
+The authors would like to acknowledge the financial support under grant number E6953 provided by the Earthquake Commission\footnote{https://www.eqc.govt.nz/} (EQC).
+\bibliography{APPLICATION}
+\end{document}

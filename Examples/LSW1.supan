@@ -1,0 +1,48 @@
+node 1 0 0
+node 2 600 0
+node 3 1200 0
+node 4 0 600
+node 5 600 600
+node 6 1200 600
+node 7 0 1200
+node 8 600 1200
+node 9 1200 1200
+
+material MPF 1 2E5 500 .01
+material CDP 2 3E4 .2 1.7 23. 2E-3 3.5E-1 .5 4. .5 .45 .2 1.16 .2 2400E-12
+material PlaneStress 3 2 1
+
+# element SRGCMQG 1 1 2 5 4 3 100 .00565 1 .017 1
+# element SRGCMQG 2 2 3 6 5 3 100 .00565 1 .017 1
+# element SRGCMQG 3 4 5 8 7 3 100 .00565 1 .017 1
+# element SRGCMQG 4 5 6 9 8 3 100 .00565 1 .017 1
+
+# element RCP4 1 1 2 5 4 3 100 .00565 1 .017 1
+# element RCP4 2 2 3 6 5 3 100 .00565 1 .017 1
+# element RCP4 3 4 5 8 7 3 100 .00565 1 .017 1
+# element RCP4 4 5 6 9 8 3 100 .00565 1 .017 1
+
+fix2 1 1 1 2 3
+fix2 2 2 1 2 3
+fix2 3 3 1 2 3
+
+plainrecorder 1 Node U1 8
+plainrecorder 2 Node RF1 1 2 3
+hdf5recorder 3 Element DT 1 2 3 4
+hdf5recorder 4 Element DC 1 2 3 4
+hdf5recorder 5 Element EINT 1 2 3 4
+
+step static 1
+set fixed_step_size 1
+set ini_step_size 1E-2
+set symm_mat false
+
+displacement 3 0 12 1 7 8 9
+
+converger RelIncreDisp 1 1E-6 20 1
+
+analyze
+
+# save recorder 1 2 3 4 5
+
+exit
